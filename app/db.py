@@ -1,14 +1,16 @@
 # Database configuration and session management for the Retro Exchange application. Coded by Copilot with minor edits by LF made afterwards.
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 # SQLite connection URL (file DB stored next to the project)
-DATABASE_URL = "sqlite:///./retro_exchange.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./retro_exchange.db")
+
 
 # Engine configuration: allow cross-thread access for FastAPI's async worker model.
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
     future=True,
 )
 
