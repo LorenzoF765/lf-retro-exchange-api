@@ -1,3 +1,4 @@
+# Dockerfile for FastAPI application with database configuration. Base file gnerated by Copilot with values supplemented by LF.
 # ---- Base image ----
 FROM python:3.11-slim
 
