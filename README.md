@@ -1,5 +1,5 @@
-﻿lf-retro-exchange-api
-Retro Video Game Exchange REST API
+
+# Retro Video Game Exchange REST API
 
 A RESTful API built with Python and FastAPI that allows users to register accounts, manage retro video games, and create trade offers with other users.
 The system is deployed as a multi-container Docker application with NGINX load balancing and PostgreSQL-backed persistence, and is compliant with Richardson Maturity Model Level 3 (HATEOAS).
