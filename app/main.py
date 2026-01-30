@@ -1,5 +1,5 @@
 # Main application entry point for the Retro Video Game Exchange API.
-# Coded by Lorenzo Franco using copilot for inline assistance, as well as for adding these comments afterwards.
+# Coded by Lorenzo Franco using copilot for inline assistance, as well as for adding these comments afterwards
 
 import os
 from fastapi import FastAPI, Request
@@ -20,7 +20,6 @@ app = FastAPI(
 )
 
 # Used to prove load balancing (api1/api2) behind NGINX.
-# In local dev this will just be "local" unless you set it.
 INSTANCE_ID = os.getenv("INSTANCE_ID", "local")
 
 
@@ -33,13 +32,15 @@ async def add_instance_header(request: Request, call_next):
 
 
 # Ensure DB tables exist at startup (using SQLAlchemy metadata)
-Base.metadata.create_all(bind=engine)
+# IMPORTANT: In multi-container deployments, only ONE instance should run create_all to avoid DDL race conditions.
+if os.getenv("DB_INIT", "0") == "1":
+    Base.metadata.create_all(bind=engine)
 
 # Register API routers (auth, users, games, offers)
 app.include_router(auth_router.router)
 app.include_router(users_router.router)
 app.include_router(games_router.router)
-app.include_router(offers_router.router)  # NEW
+app.include_router(offers_router.router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -67,8 +68,8 @@ def api_root():
             "login": {"href": "/api/auth/token", "method": "POST"},
             "me": {"href": "/api/users/me", "method": "GET"},
             "games": {"href": "/api/games", "method": "GET"},
-            "offers": {"href": "/api/offers", "method": "POST"},          # NEW
-            "incoming_offers": {"href": "/api/offers/incoming", "method": "GET"},  # NEW
-            "outgoing_offers": {"href": "/api/offers/outgoing", "method": "GET"},  # NEW
-        }
+            "offers": {"href": "/api/offers", "method": "POST"},
+            "incoming_offers": {"href": "/api/offers/incoming", "method": "GET"},
+            "outgoing_offers": {"href": "/api/offers/outgoing", "method": "GET"},
+        },
     }

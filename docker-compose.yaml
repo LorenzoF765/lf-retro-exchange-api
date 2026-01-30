@@ -1,4 +1,4 @@
-version: "3.9"
+﻿version: "3.9"
 
 services:
   db:
@@ -19,6 +19,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
+      DB_INIT: "1"  
       INSTANCE_ID: "api1"
       DATABASE_URL: "postgresql+psycopg2://${DB_USER:-retro_user}:${DB_PASSWORD:-retro_pass}@db:${DB_PORT:-5432}/${DB_NAME:-retro_exchange}"
       SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-please-very-long-string}
@@ -32,6 +33,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
+      DB_INIT: "0" 
       INSTANCE_ID: "api2"
       DATABASE_URL: "postgresql+psycopg2://${DB_USER:-retro_user}:${DB_PASSWORD:-retro_pass}@db:${DB_PORT:-5432}/${DB_NAME:-retro_exchange}"
       SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-please-very-long-string}

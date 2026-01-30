@@ -1,3 +1,4 @@
+# Router for /api/offers endpoints managing offers resources. Coded by Lorenzo Franco, as well as Copilot for adding these comments afterwards.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
