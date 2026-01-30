@@ -1,4 +1,5 @@
 # Router for /api/games endpoints managing Game resources. Coded by Lorenzo Franco using copilot for inline assistance, as well as for adding these comments afterwards.
+
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
@@ -13,8 +14,7 @@ router = APIRouter(prefix="/api/games", tags=["games"])
 def to_game_out(game: models.Game, requester_id: int) -> schemas.GameOut:
     """Convert a Game ORM instance to the public `GameOut` schema.
 
-    Adds HATEOAS links and marks whether the requester can modify the game
-    (owner-only operations).
+    Adds HATEOAS links and marks whether the requester can modify the game AKA whether or not the requester is the owner.
     """
     # Determine whether the requester is the owner and can modify/delete.
     can_modify = (game.owner_id == requester_id)
