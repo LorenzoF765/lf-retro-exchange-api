@@ -36,7 +36,7 @@ def register_user(payload: schemas.UserRegister, response: Response, db: Session
         name=user.name,
         email=user.email,
         street_address=user.street_address,
-        _links=user_links(user.id, is_self=True),
+        links=user_links(user.id, is_self=True),
     )
 
 @router.get("/me", response_model=schemas.UserOut)
@@ -47,7 +47,7 @@ def get_me(current: models.User = Depends(get_current_user)):
         name=current.name,
         email=current.email,
         street_address=current.street_address,
-        _links=user_links(current.id, is_self=True),
+        links=user_links(current.id, is_self=True),
     )
 
 @router.get("/{user_id}", response_model=schemas.UserOut)
@@ -63,7 +63,7 @@ def get_user(user_id: int, db: Session = Depends(get_db), current: models.User =
         name=user.name,
         email=user.email,
         street_address=user.street_address,
-        _links=user_links(user.id, is_self=is_self),
+        links=user_links(user.id, is_self=is_self),
     )
 
 @router.put("/{user_id}", response_model=schemas.UserOut)
@@ -89,5 +89,5 @@ def update_user(user_id: int, payload: schemas.UserUpdate, db: Session = Depends
         name=user.name,
         email=user.email,
         street_address=user.street_address,
-        _links=user_links(user.id, is_self=True),
+        links=user_links(user.id, is_self=True),
     )

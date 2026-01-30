@@ -111,3 +111,44 @@ class PagedGames(BaseModel):
     links: Dict[str, Any] = Field(..., alias="_links")
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class OfferStatus(str, Enum):
+    pending = "pending"
+    accepted = "accepted"
+    rejected = "rejected"
+
+
+class OfferCreate(BaseModel):
+    requested_game_id: int
+    offered_game_id: int
+
+
+class OfferDecision(BaseModel):
+    # Only accepted/rejected should be used when deciding
+    decision: OfferStatus
+
+
+class OfferOut(BaseModel):
+    id: int
+    requested_game_id: int
+    offered_game_id: int
+    offerer_user_id: int
+    status: OfferStatus
+
+    # Serialized as "_links" in JSON (HATEOAS)
+    links: Dict[str, Any] = Field(..., alias="_links")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PagedOffers(BaseModel):
+    items: List[OfferOut]
+    page: int
+    pageSize: int
+    total: int
+
+    # Serialized as "_links" in JSON (HATEOAS)
+    links: Dict[str, Any] = Field(..., alias="_links")
+
+    model_config = ConfigDict(populate_by_name=True)
