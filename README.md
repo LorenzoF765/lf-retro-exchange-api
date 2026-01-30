@@ -1,10 +1,13 @@
-﻿# lf-retro-exchange-api
-
+﻿lf-retro-exchange-api
 Retro Video Game Exchange REST API
 
-A RESTful API built with Python and FastAPI that allows users to register accounts and manage retro video games they wish to trade with others. The API supports authenticated access, owner-restricted updates, search functionality, and is fully compliant with Richardson Maturity Model Level 3 (HATEOAS).
+A RESTful API built with Python and FastAPI that allows users to register accounts, manage retro video games, and create trade offers with other users.
+The system is deployed as a multi-container Docker application with NGINX load balancing and PostgreSQL-backed persistence, and is compliant with Richardson Maturity Model Level 3 (HATEOAS).
 
-📌 Features
+This project was developed for CSC380 to demonstrate service-oriented architectures, distributed systems concepts, containerization, and load-balanced deployments.
+
+✨ Features
+Core
 
 User self-registration
 
@@ -12,19 +15,39 @@ JWT-based authentication
 
 Authenticated CRUD operations for retro video games
 
-Search and pagination for games
+Owner-restricted updates and deletes
 
-Owner-only update and delete permissions
+Search and pagination
 
-Full HATEOAS (_links) support (RMM Level 3)
+Full HATEOAS support (_links) — RMM Level 3
 
 OpenAPI documentation (Swagger)
 
-JSON-based request and response bodies
+Consistent JSON error envelopes
 
-Persistent storage using SQLite (easily swappable with other databases)
+Trade Offers (Distributed Feature)
 
-Consistent error handling with HTTP status codes and JSON error envelopes
+Browse games owned by other users
+
+Create trade offers (offer one owned game in exchange for another)
+
+View incoming and outgoing offers
+
+Accept or reject offers (owner-only)
+
+Offer state tracking: pending, accepted, rejected
+
+Deployment & Infrastructure
+
+Dockerized API
+
+Two API instances running in parallel
+
+PostgreSQL shared database
+
+NGINX load balancer with round-robin routing
+
+Internal service-to-service routing via Docker network (no localhost forwarding)
 
 🧱 Technology Stack
 
@@ -36,52 +59,76 @@ SQLAlchemy
 
 Pydantic
 
-JWT (python-jose)
+PostgreSQL
 
-SQLite
+JWT (python-jose)
 
 Uvicorn
 
-🚀 Getting Started
+Docker & Docker Compose
+
+NGINX
+
+🚀 Getting Started (Docker – Recommended)
+Prerequisites
+
+Docker Desktop (Windows/macOS/Linux)
+
+Docker Compose (included with Docker Desktop)
+
 1. Clone the repository
 git clone <your-github-repo-url>
 cd lf-retro-exchange-api
 
-2. Create and activate a virtual environment
-python -m venv .venv
+2. Build and run the full stack
+docker compose up --build
 
 
-Windows:
+This starts:
 
-.\.venv\Scripts\Activate.ps1
+db → PostgreSQL
+
+api1 → FastAPI instance
+
+api2 → FastAPI instance
+
+nginx → Load balancer
+
+3. Access the API (via NGINX load balancer)
+
+API Root
+👉 http://localhost:8080/api
+
+Swagger UI (OpenAPI)
+👉 http://localhost:8080/docs
+
+4. Verifying Load Balancing (Required for Lab)
+
+Every response includes:
+
+X-Instance-Id: api1 | api2
 
 
-macOS/Linux:
+Test:
 
-source .venv/bin/activate
-
-3. Install dependencies
-pip install -r requirements.txt
-
-4. Run the API
-python -m uvicorn app.main:app --reload
+curl -I http://localhost:8080/api
 
 
-The API will be available at:
+Repeated requests will alternate between api1 and api2, demonstrating round-robin distribution.
 
-http://127.0.0.1:8000
+🌐 NGINX Networking Compliance
 
-📘 API Documentation (OpenAPI)
+The NGINX load balancer routes requests only within the Docker network, as required.
 
-FastAPI automatically generates OpenAPI documentation:
+Example upstream configuration:
 
-Swagger UI:
-👉 http://127.0.0.1:8000/docs
+upstream retro_api {
+    server api1:8000;
+    server api2:8000;
+}
 
-OpenAPI JSON:
-👉 http://127.0.0.1:8000/openapi.json
 
-These endpoints satisfy the OpenAPI technical requirement.
+NGINX does not forward traffic to localhost. All backend communication uses Docker DNS service names.
 
 🔐 Authentication Flow
 
@@ -89,15 +136,13 @@ Authentication uses JWT Bearer tokens.
 
 Public Endpoints
 
-POST /api/users — Register a new user
+POST /api/users — Register a user
 
 POST /api/auth/token — Login and receive a JWT
 
 Authenticated Endpoints
 
-All other endpoints require a valid Bearer token in the Authorization header.
-
-Example:
+All other endpoints require:
 
 Authorization: Bearer <access_token>
 
@@ -133,7 +178,7 @@ PUT /api/users/{userId}
 ⚠️ Email address cannot be changed.
 
 🎮 Video Game Endpoints
-Create a game (authenticated)
+Create a game
 
 POST /api/games
 
@@ -146,7 +191,7 @@ POST /api/games
   "previous_owners": 2
 }
 
-List / Search games (authenticated)
+List / Search games
 
 GET /api/games
 
@@ -172,33 +217,60 @@ page
 
 pageSize
 
-Get a specific game
+Game detail
 
 GET /api/games/{gameId}
 
-Update a game (owner only)
+Update (owner only)
 
 PUT /api/games/{gameId}
 
-Delete a game (owner only)
+Delete (owner only)
 
 DELETE /api/games/{gameId}
 
+🔁 Trade Offer Endpoints
+Create an offer
+
+POST /api/offers
+
+{
+  "requested_game_id": 12,
+  "offered_game_id": 5
+}
+
+View incoming offers
+
+GET /api/offers/incoming
+
+View outgoing offers
+
+GET /api/offers/outgoing
+
+Accept or reject an offer
+
+POST /api/offers/{offerId}/decision
+
+{
+  "decision": "accepted"
+}
+
 🔗 HATEOAS & Richardson Maturity Model (Level 3)
 
-This API is compliant with Richardson Maturity Model Level 3.
+This API is fully compliant with RMM Level 3.
 
-How this is demonstrated:
+Demonstrated via:
 
-All responses include _links
+_links in all responses
 
-Clients discover allowed actions dynamically
+Dynamic discovery of allowed actions
 
-Owner-specific actions (update, delete) appear only when authorized
+Owner-only actions shown conditionally
 
-Collection resources provide paging and creation links
+Collection pagination links
 
-Example response snippet:
+Example:
+
 "_links": {
   "self": { "href": "/api/games/1" },
   "owner": { "href": "/api/users/1" },
@@ -207,16 +279,13 @@ Example response snippet:
   "collection": { "href": "/api/games" }
 }
 
-
-If the requester is not the owner, update and delete links are omitted.
-
 ❗ Error Handling
 
-Errors are returned using:
+Errors return:
 
-Correct HTTP status codes (400, 401, 403, 404, 409, 422)
+Proper HTTP status codes (400, 401, 403, 404, 409, 422)
 
-A consistent JSON structure:
+Consistent JSON shape:
 
 {
   "error": {
@@ -228,12 +297,12 @@ A consistent JSON structure:
 
 📂 Project Structure
 lf-retro-exchange-api/
-│── .venv/
 │── app/
 │   ├── routers/
 │   │   ├── auth.py
 │   │   ├── users.py
-│   │   └── games.py
+│   │   ├── games.py
+│   │   └── offers.py
 │   ├── auth.py
 │   ├── db.py
 │   ├── deps.py
@@ -243,13 +312,18 @@ lf-retro-exchange-api/
 │   ├── models.py
 │   ├── schemas.py
 │   └── __init__.py
+│── nginx/
+│   ├── Dockerfile
+│   └── nginx.conf
+│── Dockerfile
+│── docker-compose.yaml
 │── requirements.txt
 │── README.md
 
-📦 Database
+🗄 Database
 
-Uses SQLite by default (retro_exchange.db)
+PostgreSQL (Dockerized)
 
-Automatically created on first run
+Shared between both API instances
 
-Can be replaced with PostgreSQL or another database by changing the SQLAlchemy connection string
+Schema initialized by a single container (DB_INIT=1) to prevent race conditions
