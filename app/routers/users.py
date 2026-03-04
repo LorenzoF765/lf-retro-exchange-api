@@ -1,4 +1,4 @@
-# User management API routes for registration, profile retrieval, and updates. Coded by LF, comments provided by Copilot
+# User management API routes for registration, profile retrieval, and updates. Coded by LF using copilot inline additions, Copilot added comments afterwards.
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -8,6 +8,9 @@ from ..deps import get_db, get_current_user
 from ..auth import hash_password
 from ..errors import http_error
 from ..hateoas import user_links
+
+# Import notification helper and publish events on registration
+from ..notifications import publish_event
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -30,6 +33,13 @@ def register_user(payload: schemas.UserRegister, response: Response, db: Session
 
     db.refresh(user)
     response.headers["Location"] = f"/api/users/{user.id}"
+
+    # Publish a lightweight notification for external workers (email, analytics, etc.)
+    try:
+        publish_event("user.registered", {"user_id": user.id, "email": user.email, "name": user.name})
+    except Exception:
+        # Publishing failures shouldn't impact API response; already logged inside publish_event.
+        pass
 
     return schemas.UserOut(
         id=user.id,

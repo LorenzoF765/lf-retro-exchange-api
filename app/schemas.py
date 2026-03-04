@@ -11,6 +11,8 @@ Notes:
 - bcrypt only uses the first 72 bytes of a password; we enforce max_length=72 to prevent runtime errors.
 """
 
+# Schemas and validators for the API. Coded by LF using copilot inline additions, Copilot added comments afterwards.
+
 from enum import Enum
 from typing import Optional, Dict, Any, List
 

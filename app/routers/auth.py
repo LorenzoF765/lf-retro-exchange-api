@@ -1,4 +1,4 @@
-# Authentication router for user login and JWT token issuance. Coded by Copilot with minor edits by LF
+# Authentication router for user login and JWT token issuance. Coded by LF using copilot inline additions, Copilot added comments afterwards.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from jose import JWTError

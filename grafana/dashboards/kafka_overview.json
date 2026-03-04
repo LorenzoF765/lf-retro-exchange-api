@@ -1,0 +1,22 @@
+{
+  "annotations": {"list": []},
+  "panels": [
+    {
+      "type": "graph",
+      "title": "Kafka messages/sec (notifications)",
+      "targets": [
+        { "expr": "sum(rate(kafka_server_brokertopicmetrics_messages_in_total[1m]))", "legendFormat": "msg/s" }
+      ],
+      "id": 1
+    },
+    {
+      "type": "graph",
+      "title": "Kafka consumer lag (group email_worker_group)",
+      "targets": [
+        { "expr": "sum(kafka_consumergroup_current_offset - kafka_consumergroup_committed_offset)", "legendFormat": "lag" }
+      ],
+      "id": 2
+    }
+  ],
+  "title": "Kafka Overview"
+}

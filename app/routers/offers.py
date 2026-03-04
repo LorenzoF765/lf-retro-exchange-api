@@ -1,4 +1,4 @@
-# Router for /api/offers endpoints managing offers resources. Coded by Lorenzo Franco, as well as Copilot for adding these comments afterwards.
+# Router for /api/offers endpoints managing offers resources. Coded by LF using copilot inline additions, Copilot added comments afterwards.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -6,6 +6,9 @@ from ..deps import get_db, get_current_user
 from .. import models, schemas
 from ..errors import http_error
 from ..hateoas import link
+
+# Publish notifications for offer events
+from ..notifications import publish_event
 
 router = APIRouter(prefix="/api/offers", tags=["offers"])
 
@@ -62,6 +65,21 @@ def create_offer(
     db.commit()
     db.refresh(offer)
 
+    # Publish notification to the owner of the requested game
+    try:
+        owner = db.query(models.User).filter(models.User.id == requested.owner_id).first()
+        publish_event(
+            "offer.created",
+            {
+                "offer_id": offer.id,
+                "to_email": owner.email if owner else None,
+                "from_name": current_user.name,
+                "requested_game": requested.name,
+            },
+        )
+    except Exception:
+        pass
+
     return to_offer_out(offer, can_decide=False)
 
 
@@ -107,5 +125,19 @@ def decide_offer(
     offer.status = payload.decision.value
     db.commit()
     db.refresh(offer)
+
+    # Notify offerer about the decision
+    try:
+        offerer = db.query(models.User).filter(models.User.id == offer.offerer_user_id).first()
+        publish_event(
+            "offer.decided",
+            {
+                "offer_id": offer.id,
+                "offerer_email": offerer.email if offerer else None,
+                "status": offer.status,
+            },
+        )
+    except Exception:
+        pass
 
     return to_offer_out(offer, can_decide=True)

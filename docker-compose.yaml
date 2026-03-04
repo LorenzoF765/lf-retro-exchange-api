@@ -13,49 +13,186 @@ services:
       - retro_db:/var/lib/postgresql/data
     networks:
       - retro_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-retro_user} -d ${DB_NAME:-retro_exchange} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: apache/kafka:3.7.0
+    environment:
+      # KRaft single-node configuration
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    ports:
+      - "9092:9092"
+    networks:
+      - retro_net
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server kafka:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
 
   api1:
     build:
       context: .
       dockerfile: Dockerfile
     environment:
-      DB_INIT: "1"  
+      DB_INIT: "1"
       INSTANCE_ID: "api1"
-      DATABASE_URL: "postgresql+psycopg2://${DB_USER:-retro_user}:${DB_PASSWORD:-retro_pass}@db:${DB_PORT:-5432}/${DB_NAME:-retro_exchange}"
+      # Read DATABASE_URL from environment (.env) — do not include quoted default here
+      DATABASE_URL: ${DATABASE_URL}
       SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-please-very-long-string}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      NOTIFICATIONS_TOPIC: ${NOTIFICATIONS_TOPIC:-notifications}
     depends_on:
       - db
+      - kafka
     networks:
       - retro_net
+    restart: unless-stopped
 
   api2:
     build:
       context: .
       dockerfile: Dockerfile
     environment:
-      DB_INIT: "0" 
+      DB_INIT: "0"
       INSTANCE_ID: "api2"
-      DATABASE_URL: "postgresql+psycopg2://${DB_USER:-retro_user}:${DB_PASSWORD:-retro_pass}@db:${DB_PORT:-5432}/${DB_NAME:-retro_exchange}"
+      # Read DATABASE_URL from environment (.env) — do not include quoted default here
+      DATABASE_URL: ${DATABASE_URL}
       SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-please-very-long-string}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      NOTIFICATIONS_TOPIC: ${NOTIFICATIONS_TOPIC:-notifications}
     depends_on:
       - db
+      - kafka
     networks:
       - retro_net
+    restart: unless-stopped
+
+  email_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      NOTIFICATIONS_TOPIC: ${NOTIFICATIONS_TOPIC:-notifications}
+      KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-email_worker_group}
+      SMTP_HOST: ${SMTP_HOST:-smtp.ethereal.email}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      EMAIL_FROM: ${EMAIL_FROM:-no-reply@example.com}
+    depends_on:
+      - kafka
+    networks:
+      - retro_net
+    command: ["python", "-m", "app.email_worker"]
+    restart: unless-stopped
 
   nginx:
     build:
       context: ./nginx
       dockerfile: Dockerfile
     ports:
-      - "8080:80"
+      - "${NGINX_HOST_PORT:-8080}:80"
     depends_on:
       - api1
       - api2
     networks:
       - retro_net
 
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - retro_net
+    depends_on:
+      - api1
+      - api2
+
+  grafana:
+    image: grafana/grafana:9.5.0
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - retro_net
+    depends_on:
+      - prometheus
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    environment:
+      DATA_SOURCE_NAME: "postgresql://retro_user:retro_pass@db:5432/retro_exchange?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - retro_net
+    depends_on:
+      - db
+
+  kafka_exporter:
+    image: danielqsj/kafka-exporter:latest
+    environment:
+      KAFKA_SERVER: "kafka:9092"
+    ports:
+      - "9308:9308"
+    networks:
+      - retro_net
+    depends_on:
+      - kafka
+
+  nginx_exporter:
+    image: nginx/nginx-prometheus-exporter:0.11.0
+    command: ["-nginx.scrape-uri", "http://nginx:80/stub_status"]
+    ports:
+      - "9113:9113"
+    networks:
+      - retro_net
+    depends_on:
+      - nginx
+
+  node_exporter:
+    image: prom/node-exporter:latest
+    ports:
+      - "9100:9100"
+    networks:
+      - retro_net
+
+  kafka_init:
+    image: apache/kafka:3.7.0
+    depends_on:
+      - kafka
+    entrypoint: ["/bin/sh","-c","/usr/bin/kafka-topics --bootstrap-server kafka:9092 --create --topic notifications --partitions 1 --replication-factor 1 --if-not-exists || true"]
+    networks:
+      - retro_net
+
 volumes:
   retro_db:
+  grafana_data:
 
 networks:
   retro_net:

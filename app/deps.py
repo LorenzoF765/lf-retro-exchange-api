@@ -1,4 +1,4 @@
-# Dependency utilities for FastAPI routes, including DB session and user resolution. Coded by LF, comments provided by Copilot
+# Dependency utilities for FastAPI routes, including DB session and user resolution. Coded by LF using copilot inline additions, Copilot added comments afterwards.
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session

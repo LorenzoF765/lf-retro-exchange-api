@@ -1,0 +1,22 @@
+{
+  "annotations": {"list": []},
+  "panels": [
+    {
+      "type": "graph",
+      "title": "Postgres connections",
+      "targets": [
+        { "expr": "pg_stat_activity_count", "legendFormat": "connections" }
+      ],
+      "id": 1
+    },
+    {
+      "type": "graph",
+      "title": "Postgres queries/sec",
+      "targets": [
+        { "expr": "rate(pg_stat_database_xact_commit[1m]) + rate(pg_stat_database_xact_rollback[1m])", "legendFormat": "qps" }
+      ],
+      "id": 2
+    }
+  ],
+  "title": "Postgres Overview"
+}

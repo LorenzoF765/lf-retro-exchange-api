@@ -1,4 +1,4 @@
-# HATEOAS link generation for a gaming platform API. Coded by Lorenzo Franco with copilot assisting in adding these comments afterwards.
+# HATEOAS link generation for a gaming platform API. Coded by LF using copilot inline additions, Copilot added comments afterwards.
 
 from urllib.parse import urlencode
 

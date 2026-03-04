@@ -1,4 +1,4 @@
-# Router for /api/games endpoints managing Game resources. Coded by Lorenzo Franco using copilot for inline assistance, as well as for adding these comments afterwards.
+# Router for /api/games endpoints managing Game resources. Coded by LF using copilot inline additions, Copilot added comments afterwards.
 
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
