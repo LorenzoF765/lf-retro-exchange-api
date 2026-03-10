@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 # Environment-configurable bootstrap servers (comma-separated host:port pairs)
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
-NOTIFICATIONS_TOPIC = os.getenv("NOTIFICATIONS_TOPIC", "notifications")
+USERS_TOPIC = os.getenv("USERS_TOPIC", "users")
+OFFERS_TOPIC = os.getenv("OFFERS_TOPIC", "offers")
 
 # Module-level producer — created once, reused across requests.
 _producer: KafkaProducer | None = None
@@ -47,22 +48,38 @@ def _get_producer() -> KafkaProducer:
     return _producer
 
 
+def _topic_for(event_type: str) -> str:
+    """Resolve the Kafka topic for a given event type.
+
+    ``user.*`` events are routed to the users topic;
+    ``offer.*`` events are routed to the offers topic.
+    """
+    if event_type.startswith("offer."):
+        return OFFERS_TOPIC
+    return USERS_TOPIC
+
+
 def publish_event(event_type: str, payload: Dict[str, Any]) -> None:
-    """Publish a structured event to the notifications Kafka topic.
+    """Publish a structured event to the appropriate domain Kafka topic.
 
     Args:
         event_type: Short identifier for the event, e.g. ``"offer.created"``.
         payload:    JSON-serializable dict with event-specific data.
 
+    Routing:
+        - ``user.*``  → users topic
+        - ``offer.*`` → offers topic
+
     The function is intentionally fire-and-forget: if Kafka is unavailable the
     exception is logged and swallowed so callers are not affected.
     """
+    topic = _topic_for(event_type)
     event = {"type": event_type, "payload": payload}
     try:
         producer = _get_producer()
-        producer.send(NOTIFICATIONS_TOPIC, event)
+        producer.send(topic, event)
         producer.flush(timeout=5)
-        logger.debug("Published %s → %s", event_type, payload)
+        logger.debug("Published %s → %s (topic: %s)", event_type, payload, topic)
     except Exception:
         # Don't let a Kafka outage impact the API response.
         logger.exception("Failed to publish event type=%s", event_type)

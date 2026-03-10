@@ -88,6 +88,7 @@ async def metrics_middleware(request: Request, call_next):
 @app.get("/metrics", include_in_schema=False)
 def metrics():
     """Prometheus metrics scrape endpoint — returns all registered metrics."""
+    data = generate_latest()
     return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
 

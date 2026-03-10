@@ -1,6 +1,4 @@
-﻿version: "3.9"
-
-services:
+﻿services:
   db:
     image: postgres:16-alpine
     environment:
@@ -40,10 +38,11 @@ services:
     networks:
       - retro_net
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server kafka:9092 --list || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
 
   api1:
     build:
@@ -56,16 +55,26 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-please-very-long-string}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
-      NOTIFICATIONS_TOPIC: ${NOTIFICATIONS_TOPIC:-notifications}
+      USERS_TOPIC: ${USERS_TOPIC:-users}
+      OFFERS_TOPIC: ${OFFERS_TOPIC:-offers}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       RATE_LIMIT_GLOBAL: ${RATE_LIMIT_GLOBAL:-100}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
     depends_on:
-      - db
-      - kafka
-      - redis
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - retro_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   api2:
@@ -79,16 +88,26 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-please-very-long-string}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
-      NOTIFICATIONS_TOPIC: ${NOTIFICATIONS_TOPIC:-notifications}
+      USERS_TOPIC: ${USERS_TOPIC:-users}
+      OFFERS_TOPIC: ${OFFERS_TOPIC:-offers}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       RATE_LIMIT_GLOBAL: ${RATE_LIMIT_GLOBAL:-100}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
     depends_on:
-      - db
-      - kafka
-      - redis
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - retro_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   email_worker:
@@ -97,7 +116,8 @@ services:
       dockerfile: Dockerfile
     environment:
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
-      NOTIFICATIONS_TOPIC: ${NOTIFICATIONS_TOPIC:-notifications}
+      USERS_TOPIC: ${USERS_TOPIC:-users}
+      OFFERS_TOPIC: ${OFFERS_TOPIC:-offers}
       KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-email_worker_group}
       SMTP_HOST: ${SMTP_HOST:-smtp.ethereal.email}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -106,7 +126,8 @@ services:
       SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
       EMAIL_FROM: ${EMAIL_FROM:-no-reply@example.com}
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     networks:
       - retro_net
     command: ["python", "-m", "app.email_worker"]
@@ -119,8 +140,10 @@ services:
     ports:
       - "${NGINX_HOST_PORT:-8080}:80"
     depends_on:
-      - api1
-      - api2
+      api1:
+        condition: service_healthy
+      api2:
+        condition: service_healthy
     networks:
       - retro_net
 
@@ -133,8 +156,10 @@ services:
     networks:
       - retro_net
     depends_on:
-      - api1
-      - api2
+      api1:
+        condition: service_healthy
+      api2:
+        condition: service_healthy
 
   grafana:
     image: grafana/grafana:9.5.0
@@ -160,7 +185,8 @@ services:
     networks:
       - retro_net
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   kafka_exporter:
     image: danielqsj/kafka-exporter:latest
@@ -170,7 +196,8 @@ services:
     networks:
       - retro_net
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     restart: unless-stopped
 
   nginx_exporter:
@@ -199,13 +226,15 @@ services:
     networks:
       - retro_net
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
   kafka_init:
     image: apache/kafka:3.7.0
     depends_on:
-      - kafka
-    entrypoint: ["/bin/sh","-c","/usr/bin/kafka-topics --bootstrap-server kafka:9092 --create --topic notifications --partitions 1 --replication-factor 1 --if-not-exists || true"]
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh","-c","/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --topic users --partitions 1 --replication-factor 1 --if-not-exists || true && /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --topic offers --partitions 1 --replication-factor 1 --if-not-exists || true"]
     networks:
       - retro_net
 

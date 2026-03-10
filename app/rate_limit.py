@@ -98,32 +98,49 @@ def _resolve_limit(path: str) -> tuple[int, int]:
 
 
 def _check_sliding_window(redis_client, key: str, limit: int, window: int) -> tuple[bool, int]:
-    """
-    Sliding-window rate limit check using a Redis sorted set.
+    """Sliding-window rate limit check using a Redis sorted set.
 
     Returns (allowed: bool, current_count: int).
-    Uses an atomic Lua script so all operations happen in a single Redis round-trip.
+
+    The entire check-and-insert is an atomic Lua script (single Redis round-trip)
+    so there are no TOCTOU races even across multiple API instances.
+
+    Member uniqueness fix: timestamps alone are not safe members because two
+    concurrent requests (from api1 and api2, or within the same microsecond)
+    can produce an identical ``time.time()`` value.  When ``ZADD`` receives a
+    duplicate member it **updates** the existing entry rather than inserting a
+    new one, keeping ZCARD artificially low and preventing the limit from ever
+    being reached.  We fix this by using an atomic ``INCR`` on a companion
+    counter key as the member — every request gets a guaranteed-unique slot in
+    the sorted set while the score (timestamp) still drives the time-window
+    expiry logic.
     """
     now = time.time()
     window_start = now - window
 
     lua_script = """
     local key        = KEYS[1]
+    local seq_key    = key .. ':n'
     local now        = tonumber(ARGV[1])
     local window_start = tonumber(ARGV[2])
     local limit      = tonumber(ARGV[3])
     local window     = tonumber(ARGV[4])
 
-    -- Remove entries outside the current window
+    -- Remove entries that have fallen outside the current time window.
     redis.call('ZREMRANGEBYSCORE', key, '-inf', window_start)
 
-    -- Count remaining entries
+    -- Count requests still within the window.
     local count = redis.call('ZCARD', key)
 
     if count < limit then
-        -- Allow: add this request with timestamp as both score and member
-        redis.call('ZADD', key, now, now)
-        redis.call('EXPIRE', key, window)
+        -- Allocate a unique sequence number so that concurrent requests
+        -- arriving at the same timestamp do not overwrite each other.
+        -- Score = timestamp (drives ZREMRANGEBYSCORE expiry).
+        -- Member = monotonic sequence number (guarantees uniqueness).
+        local seq = redis.call('INCR', seq_key)
+        redis.call('ZADD', key, now, seq)
+        redis.call('EXPIRE', key,     window)
+        redis.call('EXPIRE', seq_key, window)
         return {1, count + 1}
     else
         return {0, count}

@@ -3,9 +3,9 @@
 """
 Kafka consumer that sends email notifications via an SMTP server (Ethereal).
 
-This process subscribes to a `notifications` topic and, for supported events,
-sends an email to the appropriate recipient. SMTP connection and Kafka
-bootstrap address are configured via environment variables.
+This process subscribes to the ``users`` and ``offers`` topics and, for
+supported events, sends an email to the appropriate recipient. SMTP connection
+and Kafka bootstrap address are configured via environment variables.
 
 Run as: python -m app.email_worker
 """
@@ -22,7 +22,8 @@ logging.basicConfig(level=os.getenv("EMAIL_WORKER_LOG_LEVEL", "INFO"))
 
 # Kafka and topic configuration
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
-NOTIFICATIONS_TOPIC = os.getenv("NOTIFICATIONS_TOPIC", "notifications")
+USERS_TOPIC = os.getenv("USERS_TOPIC", "users")
+OFFERS_TOPIC = os.getenv("OFFERS_TOPIC", "offers")
 KAFKA_GROUP = os.getenv("KAFKA_CONSUMER_GROUP", "email_worker_group")
 
 # SMTP / Ethereal configuration (set these from the environment)
@@ -100,7 +101,7 @@ def handle_event(event: dict) -> None:
 
 def main():
     """Main consumer loop."""
-    logger.info("Starting email_worker, connecting to Kafka %s topic %s", KAFKA_BOOTSTRAP, NOTIFICATIONS_TOPIC)
+    logger.info("Starting email_worker, connecting to Kafka %s topics %s, %s", KAFKA_BOOTSTRAP, USERS_TOPIC, OFFERS_TOPIC)
     # Create consumer with retry/backoff so worker doesn't crash if broker is not
     # available immediately on container start.
     consumer = None
@@ -116,7 +117,8 @@ def main():
             while True:
                 try:
                     consumer = KafkaConsumer(
-                        NOTIFICATIONS_TOPIC,
+                        USERS_TOPIC,
+                        OFFERS_TOPIC,
                         bootstrap_servers=KAFKA_BOOTSTRAP.split(","),
                         group_id=KAFKA_GROUP,
                         auto_offset_reset="earliest",

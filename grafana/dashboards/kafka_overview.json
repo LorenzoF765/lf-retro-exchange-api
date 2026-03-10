@@ -30,7 +30,7 @@
   "panels": [
     {
       "type": "timeseries",
-      "title": "Kafka messages/sec (notifications)",
+      "title": "Kafka messages/sec (users + offers)",
       "id": 1,
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
       "datasource": {"type": "prometheus", "uid": "${datasource}"},
@@ -53,8 +53,8 @@
           "editorMode": "code",
           "range": true,
           "instant": false,
-          "expr": "sum(rate(kafka_topic_partition_current_offset{topic=\"notifications\"}[1m]))",
-          "legendFormat": "msg/s"
+          "expr": "sum by (topic) (rate(kafka_topic_partition_current_offset{topic=~\"users|offers\"}[1m]))",
+          "legendFormat": "{{topic}}"
         }
       ]
     },
