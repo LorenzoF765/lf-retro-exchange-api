@@ -1,22 +1,152 @@
 {
+  "schemaVersion": 36,
+  "title": "Kafka Overview",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "refresh": "5s",
+  "time": {"from": "now-15m", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "version": 1,
   "annotations": {"list": []},
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Data Source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      }
+    ]
+  },
   "panels": [
     {
-      "type": "graph",
+      "type": "timeseries",
       "title": "Kafka messages/sec (notifications)",
+      "id": 1,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"lineWidth": 1},
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi", "sort": "none"}
+      },
       "targets": [
-        { "expr": "sum(rate(kafka_server_brokertopicmetrics_messages_in_total[1m]))", "legendFormat": "msg/s" }
-      ],
-      "id": 1
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "refId": "A",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "expr": "sum(rate(kafka_topic_partition_current_offset{topic=\"notifications\"}[1m]))",
+          "legendFormat": "msg/s"
+        }
+      ]
     },
     {
-      "type": "graph",
+      "type": "timeseries",
       "title": "Kafka consumer lag (group email_worker_group)",
+      "id": 2,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"lineWidth": 1},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi", "sort": "none"}
+      },
       "targets": [
-        { "expr": "sum(kafka_consumergroup_current_offset - kafka_consumergroup_committed_offset)", "legendFormat": "lag" }
-      ],
-      "id": 2
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "refId": "A",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "expr": "sum(kafka_consumergroup_lag{consumergroup=\"email_worker_group\"})",
+          "legendFormat": "lag"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Kafka topic partitions",
+      "id": 3,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"lineWidth": 1},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi", "sort": "none"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "refId": "A",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "expr": "sum by (topic)(kafka_topic_partitions)",
+          "legendFormat": "{{topic}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Kafka under-replicated partitions",
+      "id": 4,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"lineWidth": 1},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi", "sort": "none"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "refId": "A",
+          "editorMode": "code",
+          "range": true,
+          "instant": false,
+          "expr": "sum by (topic)(kafka_topic_partition_under_replicated_partition)",
+          "legendFormat": "{{topic}}"
+        }
+      ]
     }
-  ],
-  "title": "Kafka Overview"
+  ]
 }

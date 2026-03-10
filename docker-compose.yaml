@@ -57,9 +57,13 @@ services:
       SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-please-very-long-string}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
       NOTIFICATIONS_TOPIC: ${NOTIFICATIONS_TOPIC:-notifications}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      RATE_LIMIT_GLOBAL: ${RATE_LIMIT_GLOBAL:-100}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
     depends_on:
       - db
       - kafka
+      - redis
     networks:
       - retro_net
     restart: unless-stopped
@@ -76,9 +80,13 @@ services:
       SECRET_KEY: ${SECRET_KEY:-dev-only-change-me-please-very-long-string}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
       NOTIFICATIONS_TOPIC: ${NOTIFICATIONS_TOPIC:-notifications}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      RATE_LIMIT_GLOBAL: ${RATE_LIMIT_GLOBAL:-100}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
     depends_on:
       - db
       - kafka
+      - redis
     networks:
       - retro_net
     restart: unless-stopped
@@ -156,14 +164,14 @@ services:
 
   kafka_exporter:
     image: danielqsj/kafka-exporter:latest
-    environment:
-      KAFKA_SERVER: "kafka:9092"
+    command: ["--kafka.server=kafka:9092"]
     ports:
       - "9308:9308"
     networks:
       - retro_net
     depends_on:
       - kafka
+    restart: unless-stopped
 
   nginx_exporter:
     image: nginx/nginx-prometheus-exporter:0.11.0
@@ -182,6 +190,17 @@ services:
     networks:
       - retro_net
 
+  redis_exporter:
+    image: oliver006/redis_exporter:latest
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    ports:
+      - "9121:9121"
+    networks:
+      - retro_net
+    depends_on:
+      - redis
+
   kafka_init:
     image: apache/kafka:3.7.0
     depends_on:
@@ -190,9 +209,37 @@ services:
     networks:
       - retro_net
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - retro_net
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  locust:
+    image: locustio/locust:2.24.0
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./locustfile.py:/locustfile.py:ro
+    command: ["-f", "/locustfile.py", "--host", "http://nginx:80"]
+    networks:
+      - retro_net
+    depends_on:
+      - nginx
+
 volumes:
   retro_db:
   grafana_data:
+  redis_data:
 
 networks:
   retro_net:

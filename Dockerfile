@@ -1,3 +1,7 @@
+# Dockerfile for the Retro Video Game Exchange API.
+# Builds a slim Python 3.11 image and runs the FastAPI app with Uvicorn.
+# Coded by LF.
+
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1

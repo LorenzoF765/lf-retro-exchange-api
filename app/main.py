@@ -1,16 +1,21 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response
-from fastapi.exceptions import RequestValidationError
+# Application entry point — FastAPI app factory, middleware, Prometheus metrics,
+# health check, and HATEOAS API root.
+# Coded by LF using copilot inline additions, Copilot added comments afterwards.
 import os
+import socket
+import time
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
 from .db import Base, engine
+from .rate_limit import rate_limit_middleware
 from .routers import auth as auth_router
-from .routers import users as users_router
 from .routers import games as games_router
-from .routers import offers as offers_router  # make sure this exists
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-import time
-import socket
+from .routers import offers as offers_router
+from .routers import users as users_router
 
 app = FastAPI(
     title="Retro Video Game Exchange API",
@@ -18,28 +23,28 @@ app = FastAPI(
     description="A REST API for registering users and trading retro video games (RMM Level 3 / HATEOAS).",
 )
 
-# Application entry and routing configuration. Coded by LF using copilot inline additions, Copilot added comments afterwards.
-
-# Defer DB initialization until startup so the container can wait for Postgres to be ready.
-import time
-from sqlalchemy.exc import OperationalError
+# Register rate limiting middleware (runs before metrics middleware so rejected
+# requests are still counted in Prometheus with their 429 status code).
+app.middleware("http")(rate_limit_middleware)
 
 
 @app.on_event("startup")
 def startup_db():
-    """Wait for the database to become available, then create tables."""
+    """Wait for the database to become available, then create all tables.
+
+    Retries up to *retries* times with a fixed delay between attempts so the
+    API container can start before the PostgreSQL container is fully ready
+    (common in docker-compose without a proper health-check dependency).
+    """
     retries = 12
     delay = 2
     for attempt in range(retries):
         try:
-            # Quick connectivity check
             with engine.connect() as conn:
-                # SQLAlchemy 2.0: use exec_driver_sql or text() for plain SQL
                 conn.exec_driver_sql("SELECT 1")
             Base.metadata.create_all(bind=engine)
             return
         except Exception as exc:
-            # If last attempt, re-raise so failures are visible in logs
             if attempt == retries - 1:
                 raise
             time.sleep(delay)
@@ -49,28 +54,40 @@ app.include_router(users_router.router)
 app.include_router(games_router.router)
 app.include_router(offers_router.router)
 
-# Prometheus metrics
+# ---------------------------------------------------------------------------
+# Prometheus counters and histograms
+# ---------------------------------------------------------------------------
 REQUEST_COUNT = Counter(
-    "retro_api_requests_total", "Total HTTP requests", ["method", "endpoint", "http_status"]
+    "retro_api_requests_total",
+    "Total HTTP requests handled by the API",
+    ["method", "endpoint", "http_status"],
 )
-REQUEST_LATENCY = Histogram("retro_api_request_latency_seconds", "Request latency seconds", ["endpoint"])
+REQUEST_LATENCY = Histogram(
+    "retro_api_request_latency_seconds",
+    "End-to-end request latency in seconds",
+    ["endpoint"],
+)
 
 
 @app.middleware("http")
-async def metrics_middleware(request, call_next):
+async def metrics_middleware(request: Request, call_next):
+    """Record per-endpoint request count and latency for Prometheus scraping."""
     start = time.time()
     response = await call_next(request)
-    resp_time = time.time() - start
+    duration = time.time() - start
     endpoint = request.url.path
-    REQUEST_LATENCY.labels(endpoint=endpoint).observe(resp_time)
-    REQUEST_COUNT.labels(method=request.method, endpoint=endpoint, http_status=str(response.status_code)).inc()
+    REQUEST_LATENCY.labels(endpoint=endpoint).observe(duration)
+    REQUEST_COUNT.labels(
+        method=request.method,
+        endpoint=endpoint,
+        http_status=str(response.status_code),
+    ).inc()
     return response
 
 
-@app.get("/metrics")
+@app.get("/metrics", include_in_schema=False)
 def metrics():
-    """Prometheus metrics endpoint"""
-    data = generate_latest()
+    """Prometheus metrics scrape endpoint — returns all registered metrics."""
     return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
 

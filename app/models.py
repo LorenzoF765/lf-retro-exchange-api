@@ -1,6 +1,5 @@
-# Data model definitions for the application. Coded by LF using copilot inline additions, Copilot added comments afterwards.
-# Models class. Code written by me, Lorenzo Franco, with copilot in charge of adding these comments afterwards
-# to improve readability and documentation.
+# SQLAlchemy ORM models for the Retro Exchange application.
+# Coded by LF using copilot inline additions, Copilot added comments afterwards.
 
 from datetime import datetime
 

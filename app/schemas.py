@@ -1,22 +1,22 @@
 """
-Schemas module.
+Pydantic request/response schemas for the Retro Exchange API.
 
-Defines Pydantic models for request and response payloads.
+Design notes:
+- HATEOAS links are serialized as the JSON key ``_links``.  Because Pydantic
+  treats fields starting with ``_`` as private (and excludes them from output),
+  the field is declared as ``links`` in Python and aliased to ``_links`` via
+  ``Field(..., alias="_links")``.
+- bcrypt silently truncates passwords at 72 bytes, so we enforce
+  ``max_length=72`` on password fields to prevent two distinct passwords from
+  hashing identically.
 
-Notes:
-- HATEOAS is represented as JSON property "_links".
-- In Pydantic, fields beginning with "_" are treated as private and are excluded from output by default.
-  To keep the JSON property name "_links" while avoiding private-field behavior, we model the field as
-  `links` in Python and alias it to "_links" in JSON via Field(..., alias="_links").
-- bcrypt only uses the first 72 bytes of a password; we enforce max_length=72 to prevent runtime errors.
+Coded by LF using copilot inline additions, Copilot added comments afterwards.
 """
-
-# Schemas and validators for the API. Coded by LF using copilot inline additions, Copilot added comments afterwards.
 
 from enum import Enum
 from typing import Optional, Dict, Any, List
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 
 
 # Domain enum describing acceptable condition values for games.
@@ -127,8 +127,19 @@ class OfferCreate(BaseModel):
 
 
 class OfferDecision(BaseModel):
-    # Only accepted/rejected should be used when deciding
+    """Payload for accepting or rejecting a trade offer.
+
+    Only ``accepted`` and ``rejected`` are valid decisions; ``pending`` is
+    rejected at the schema level so the router never receives an invalid status.
+    """
     decision: OfferStatus
+
+    @field_validator("decision")
+    @classmethod
+    def decision_must_be_final(cls, v: OfferStatus) -> OfferStatus:
+        if v == OfferStatus.pending:
+            raise ValueError("Decision must be 'accepted' or 'rejected', not 'pending'")
+        return v
 
 
 class OfferOut(BaseModel):
